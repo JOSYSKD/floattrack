@@ -278,6 +278,18 @@ details.tbl-wrap summary { font-size: 12.5px; color: var(--text-muted); cursor: 
 .muted { color: var(--text-muted); }
 .row-btns { display: flex; gap: 8px; margin-top: 8px; }
 
+/* ---- Blackout (Bildschirm dunkel, GPS läuft) ---- */
+.btn-moon { flex: 0 0 58px; font-size: 19px; }
+.blackout {
+  position: fixed; inset: 0; z-index: 4000; background: #000;
+  display: flex; align-items: center; justify-content: center;
+  touch-action: none; user-select: none; -webkit-user-select: none;
+}
+.blackout-inner { text-align: center; color: #2b2e30; }
+.bo-speed { font-size: 90px; font-weight: 200; line-height: 1; font-variant-numeric: tabular-nums; }
+.bo-info { font-size: 15px; margin-top: 10px; font-variant-numeric: tabular-nums; }
+.bo-hint { font-size: 12px; margin-top: 46px; opacity: .65; }
+
 /* ---- Toast ---- */
 .toast {
   position: fixed; left: 50%; transform: translateX(-50%);

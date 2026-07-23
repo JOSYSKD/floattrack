@@ -45,6 +45,13 @@ Jede Fahrt hat Karte, Kennzahlen, **Speed-Diagramm** (umschaltbar Zeit ↔ Strec
 MAX/MIN-Markierung, Ø-Linie und Tooltip, der die Stelle auf der Karte zeigt),
 Höhenprofil und Kilometer-Splits als Tabelle. Export als **GPX**, komplettes Backup als JSON.
 
+## Handy sperren?
+
+Nicht sperren – bei gesperrtem Bildschirm stoppt das Betriebssystem GPS für Web-Apps
+(das kann keine Website umgehen). Stattdessen während der Fahrt den **🌙-Knopf** drücken:
+Der Bildschirm wird schwarz (nur eine ganz dunkle Anzeige läuft mit), die Aufzeichnung
+läuft normal weiter. **2× tippen** weckt die App wieder auf.
+
 ## Aufs Handy
 
 Über HTTPS aufrufen → Browser-Menü → *Zum Startbildschirm hinzufügen*. Läuft dann als

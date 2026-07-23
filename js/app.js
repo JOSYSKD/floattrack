@@ -232,10 +232,16 @@ $('#btn-start').addEventListener('click', async () => {
   $('#btn-start').classList.add('hidden');
   $('#btn-pause').classList.remove('hidden');
   $('#btn-stop').classList.remove('hidden');
+  $('#btn-dark').classList.remove('hidden');
   $('#lapbox').classList.toggle('hidden', rideMode !== 'lap');
   $('#lap-list').innerHTML = '';
   $('#mode-row').style.opacity = '.45';
-  toast(rideMode === 'scan' ? 'Trail wird aufgezeichnet – fahr ihn einmal ab' : 'Aufzeichnung läuft');
+  if (!settings.darkHint) {
+    toast('Wichtig: Handy nicht sperren, sonst stoppt das GPS – nutz stattdessen den 🌙-Knopf (Bildschirm dunkel, Aufzeichnung läuft weiter).', 6500);
+    settings.darkHint = true; saveSettings();
+  } else {
+    toast(rideMode === 'scan' ? 'Trail wird aufgezeichnet – fahr ihn einmal ab' : 'Aufzeichnung läuft');
+  }
 });
 
 $('#btn-pause').addEventListener('click', () => {
@@ -248,6 +254,8 @@ $('#btn-stop').addEventListener('click', async () => {
   $('#btn-start').classList.remove('hidden');
   $('#btn-pause').classList.add('hidden'); $('#btn-pause').textContent = 'Pause';
   $('#btn-stop').classList.add('hidden');
+  $('#btn-dark').classList.add('hidden');
+  $('#blackout').hidden = true;
   $('#mode-row').style.opacity = '1';
   $('#lapbox').classList.add('hidden');
   if (res.points.length < 5) return toast('Zu kurz – nichts gespeichert');
@@ -371,9 +379,27 @@ function updateLive() {
   const clock = tracker.lapClock;
   $('#lap-clock').textContent = clock !== null ? fmtLap(clock) : '–';
   if (tracker.mode === 'lap' && tracker.lapState === 'armed') $('#lap-state').textContent = 'Fahr zum Trail-Start …';
+  if (!$('#blackout').hidden) {
+    $('#bo-speed').textContent = nf(kmh(v), 0);
+    $('#bo-info').textContent = `${d.v} ${d.u} · ${fmtTime(tracker.elapsed)}${clock !== null ? ' · Runde ' + fmtLap(clock) : ''}`;
+    return;                                // Rest der UI ist eh unsichtbar
+  }
   sparkline($('#spark'), state.spark);
 }
 setInterval(() => { if (tracker.active) updateLive(); }, 300);
+
+/* ---- Bildschirm-dunkel-Modus ---- */
+let boLastTap = 0;
+$('#btn-dark').addEventListener('click', () => {
+  $('#blackout').hidden = false;
+  tracker.keepAwake(true);                 // Display bleibt an, nur eben schwarz
+});
+$('#blackout').addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  const now = Date.now();
+  if (now - boLastTap < 500) { $('#blackout').hidden = true; boLastTap = 0; }
+  else boLastTap = now;                    // Doppeltipp nötig (gegen Hosentaschen-Berührungen)
+});
 
 /* ==================== Spots ==================== */
 $('#btn-spot-now').addEventListener('click', () => {

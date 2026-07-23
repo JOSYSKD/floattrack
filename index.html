@@ -73,6 +73,7 @@
         <button class="btn btn-ghost hidden" id="btn-pause">Pause</button>
         <button class="btn btn-danger hidden" id="btn-stop">Stopp</button>
         <button class="btn btn-ghost" id="btn-spot-now">Spot hier</button>
+        <button class="btn btn-ghost btn-moon hidden" id="btn-dark" aria-label="Bildschirm dunkel">🌙</button>
       </div>
     </div>
   </section>
@@ -138,6 +139,15 @@
 </div>
 
 <div class="toast" id="toast" hidden></div>
+
+<!-- Dunkel-Modus während der Fahrt: Bildschirm „aus", GPS läuft weiter -->
+<div class="blackout" id="blackout" hidden>
+  <div class="blackout-inner">
+    <div class="bo-speed" id="bo-speed">0</div>
+    <div class="bo-info" id="bo-info"></div>
+    <div class="bo-hint">2× tippen zum Aufwachen</div>
+  </div>
+</div>
 
 <script src="vendor/leaflet.js"></script>
 <script type="module" src="js/app.js"></script>
