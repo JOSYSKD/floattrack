@@ -52,10 +52,12 @@ function closeModal(pop = true) {
 $('#modal').addEventListener('click', (e) => { if (e.target.id === 'modal') closeModal(); });
 
 function openDetail(title, render) {
+  state.detailChart?.destroy?.(); state.detailChart = null;
+  state.maps.detail?.remove(); state.maps.detail = null;
   $('#detail-title').textContent = title;
   $('#detail-body').innerHTML = '';
   $('#detail').hidden = false;
-  history.pushState({ detail: 1 }, '');
+  if (!history.state?.detail) history.pushState({ detail: 1 }, '');  // nur 1 Eintrag, auch bei Detail→Detail
   render($('#detail-body'));
 }
 function closeDetail(pop = true) {
@@ -603,7 +605,7 @@ function openTrail(id) {
     trackLayer(t.pts).addTo(map);
     spots.forEach((s) => L.marker([s.lat, s.lon], { icon: spotIcon(s.cat) }).addTo(map).on('click', () => openSpot(s.id)));
     map.fitBounds(bounds(t.pts), { padding: [24, 24] });
-    setTimeout(() => map.invalidateSize(), 80);
+    setTimeout(() => { if (state.maps.detail === map) map.invalidateSize(); }, 80);
 
     const gal = $('#t-spots', body);
     if (!spots.length) gal.innerHTML = '<div class="muted" style="font-size:13px">Noch keine Spots – auf der Karte lange drücken oder während der Fahrt „Spot hier“.</div>';
@@ -628,7 +630,7 @@ function openTrail(id) {
       $('#rn-c', c).onclick = () => closeModal();
       $('#rn-ok', c).onclick = async () => {
         t.name = $('#rn', c).value.trim() || t.name;
-        await db.put('trails', t); await loadAll(); closeModal(); closeDetail(); renderTrails(); openTrail(id);
+        await db.put('trails', t); await loadAll(); closeModal(); renderTrails(); openTrail(id);
       };
     };
     $('#t-del', body).onclick = async () => {
@@ -705,7 +707,10 @@ function openRide(id) {
       </details>
 
       <div class="row-btns">
-        <button class="btn" id="r-gpx">GPX exportieren</button>
+        <button class="btn" id="r-trim">✂ Zuschneiden</button>
+        <button class="btn" id="r-gpx">GPX</button>
+      </div>
+      <div class="row-btns">
         ${!trail ? '<button class="btn" id="r-trail">Als Trail sichern</button>' : ''}
         <button class="btn btn-danger" id="r-del">Löschen</button>
       </div>
@@ -721,7 +726,7 @@ function openRide(id) {
     if (hi) L.circleMarker([hi.lat, hi.lon], { radius: 7, color: '#fff', weight: 2, fillColor: '#3987e5', fillOpacity: 1 })
       .addTo(map).bindTooltip(`MAX ${nf(kmh(st.max), 1)} km/h`, { permanent: false });
     map.fitBounds(bounds(r.points), { padding: [24, 24] });
-    setTimeout(() => map.invalidateSize(), 80);
+    setTimeout(() => { if (state.maps.detail === map) map.invalidateSize(); }, 80);
 
     const hover = L.circleMarker([r.points[0].lat, r.points[0].lon], { radius: 6, color: '#fff', weight: 2, fillColor: accent(), fillOpacity: 1 });
     let xMode = 't';
@@ -743,6 +748,7 @@ function openRide(id) {
       build();
     });
 
+    $('#r-trim', body).onclick = () => openTrim(r.id);
     $('#r-gpx', body).onclick = () => download(r.name.replace(/\W+/g, '_') + '.gpx', toGPX(r.name, r.points, nearSpots));
     $('#r-del', body).onclick = async () => {
       if (!await confirmBox('Fahrt löschen?')) return;
@@ -783,6 +789,79 @@ function splitRows(st) {
   return rows.join('') || '<tr><td colspan="4" class="muted">Zu kurz für Splits</td></tr>';
 }
 
+/* ==================== Zuschneiden ==================== */
+function openTrim(id) {
+  const r = state.rides.find((x) => x.id === id); if (!r) return;
+  const pts = r.points, N = pts.length - 1;
+  openDetail('Zuschneiden', (body) => {
+    body.innerHTML = `
+      <div class="detail-map" id="dmap"></div>
+      <div class="card">
+        <div class="field"><label>Anfang abschneiden</label><input type="range" id="tr-a" min="0" max="${N}" value="0"></div>
+        <div class="field" style="margin-bottom:4px"><label>Ende abschneiden</label><input type="range" id="tr-b" min="0" max="${N}" value="${N}"></div>
+        <div class="meta" id="tr-info" style="margin-top:8px"></div>
+      </div>
+      <div class="muted" style="font-size:12.5px;margin-bottom:12px">Schneidet z.B. die Anfahrt zum Trail oder das Rumstehen am Ende weg. Grau = wird entfernt.</div>
+      <div class="row-btns">
+        <button class="btn" id="tr-cancel">Abbrechen</button>
+        <button class="btn btn-primary" id="tr-ok">Zuschneiden</button>
+      </div>
+      <div style="height:30px"></div>`;
+
+    const map = makeMap('dmap', { zoom: false });
+    state.maps.detail = map;
+    L.polyline(pts.map((p) => [p.lat, p.lon]), { color: '#7d858c', weight: 3, opacity: .55 }).addTo(map);
+    const kept = L.polyline([], { color: accent(), weight: 4, lineCap: 'round' }).addTo(map);
+    const mA = L.circleMarker([0, 0], { radius: 8, color: '#fff', weight: 2, fillColor: accent(), fillOpacity: 1 }).addTo(map);
+    const mB = L.circleMarker([0, 0], { radius: 8, color: '#fff', weight: 2, fillColor: '#e66767', fillOpacity: 1 }).addTo(map);
+    map.fitBounds(bounds(pts), { padding: [24, 24] });
+    setTimeout(() => { if (state.maps.detail === map) map.invalidateSize(); }, 80);
+
+    let a = 0, b = N;
+    const upd = () => {
+      a = Math.min(+$('#tr-a', body).value, N - 10);
+      b = Math.max(+$('#tr-b', body).value, a + 10);
+      $('#tr-a', body).value = a; $('#tr-b', body).value = b;
+      const slice = pts.slice(a, b + 1);
+      kept.setLatLngs(slice.map((p) => [p.lat, p.lon]));
+      mA.setLatLng([slice[0].lat, slice[0].lon]);
+      mB.setLatLng([slice[slice.length - 1].lat, slice[slice.length - 1].lon]);
+      const st = analyze(slice);
+      const d = fmtDist(st.dist);
+      const cutA = (pts[a].t - pts[0].t) / 1000, cutB = (pts[N].t - pts[b].t) / 1000;
+      $('#tr-info', body).innerHTML = `Behalten: <b>${d.v} ${d.u} · ${fmtTime(st.dur)}</b> — weg: ${fmtTime(cutA)} vorne, ${fmtTime(cutB)} hinten`;
+    };
+    $('#tr-a', body).oninput = upd;
+    $('#tr-b', body).oninput = upd;
+    upd();
+
+    $('#tr-cancel', body).onclick = () => openRide(id);
+    $('#tr-ok', body).onclick = async () => {
+      const keptPts = pts.slice(a, b + 1);
+      // Pausen liegen als Zeitlücken in den Punkten – nur neu ermitteln, wenn die Fahrt Pausen hatte
+      let pausedMs = 0;
+      if (r.pausedMs > 0) {
+        for (let i = 1; i < keptPts.length; i++) {
+          const dt = keptPts[i].t - keptPts[i - 1].t;
+          if (dt > 10000) pausedMs += dt;
+        }
+      }
+      const st = analyze(keptPts);
+      r.points = keptPts;
+      r.pausedMs = pausedMs;
+      r.startedAt = keptPts[0].t;
+      r.endedAt = keptPts[keptPts.length - 1].t;
+      r.laps = (r.laps || []).filter((l) => l.from >= a && l.to <= b).map((l) => ({ ...l, from: l.from - a, to: l.to - a }));
+      r.stats = { dist: st.dist, dur: Math.max(0, st.dur - pausedMs / 1000), moving: st.moving, avg: st.avg, avgMoving: st.avgMoving, max: st.max, up: st.up, down: st.down };
+      await db.put('rides', r);
+      await loadAll();
+      renderRides(); refreshBigMap();
+      toast('Zugeschnitten');
+      openRide(id);
+    };
+  });
+}
+
 /* ==================== Spot-Detail ==================== */
 function openSpot(id) {
   const s = state.spots.find((x) => x.id === id); if (!s) return;
@@ -813,7 +892,7 @@ function openSpot(id) {
     map.setView([s.lat, s.lon], 17);
     L.marker([s.lat, s.lon], { icon: spotIcon(s.cat) }).addTo(map);
     if (trail) trackLayer(trail.pts).addTo(map);
-    setTimeout(() => map.invalidateSize(), 80);
+    setTimeout(() => { if (state.maps.detail === map) map.invalidateSize(); }, 80);
     $('#sp-edit', body).onclick = () => spotDialog(s, s);
     $('#sp-nav', body).onclick = () => window.open(`https://www.openstreetmap.org/?mlat=${s.lat}&mlon=${s.lon}#map=17/${s.lat}/${s.lon}`, '_blank');
   });

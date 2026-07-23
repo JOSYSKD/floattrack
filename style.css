@@ -264,6 +264,7 @@ details.tbl-wrap summary { font-size: 12.5px; color: var(--text-muted); cursor: 
   border: 1px solid var(--line); color: var(--text-primary); outline: none;
 }
 .field input:focus, .field textarea:focus, .field select:focus { border-color: var(--accent); }
+.field input[type=range] { padding: 0; border: 0; background: none; accent-color: var(--accent); height: 34px; }
 .cat-row { display: flex; gap: 6px; flex-wrap: wrap; }
 .cat-btn { padding: 8px 12px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); font-size: 13px; }
 .cat-btn.is-on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 18%, var(--surface-2)); }
