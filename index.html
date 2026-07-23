@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="de" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<title>floatTRACK</title>
+<meta name="theme-color" content="#0f1113">
+<meta name="description" content="Singletrails scannen, Spots sammeln, Rundenzeiten fahren.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="floatTRACK">
+<link rel="stylesheet" href="vendor/leaflet.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ============ FAHREN ============ -->
+  <section class="screen is-active" id="screen-ride" data-screen="ride">
+    <header class="topbar">
+      <div class="brand">float<span>TRACK</span></div>
+      <button class="icon-btn" id="btn-settings" aria-label="Einstellungen">⚙</button>
+    </header>
+
+    <div class="scroll">
+      <div class="gps-bar" id="gps-bar">
+        <span class="gps-dot" id="gps-dot"></span>
+        <span id="gps-text">GPS aus</span>
+      </div>
+
+      <div class="speed-hero">
+        <div class="speed-value" id="live-speed">0<span class="speed-unit">km/h</span></div>
+        <div class="speed-sub" id="live-mode-label">Freie Fahrt</div>
+        <canvas class="spark" id="spark" height="70"></canvas>
+      </div>
+
+      <div class="stat-grid">
+        <div class="stat"><span class="stat-label">Strecke</span><span class="stat-num" id="live-dist">0,00<i>km</i></span></div>
+        <div class="stat"><span class="stat-label">Zeit</span><span class="stat-num" id="live-time">0:00</span></div>
+        <div class="stat"><span class="stat-label">Ø Tempo</span><span class="stat-num" id="live-avg">0,0<i>km/h</i></span></div>
+        <div class="stat"><span class="stat-label">Top</span><span class="stat-num" id="live-max">0,0<i>km/h</i></span></div>
+        <div class="stat"><span class="stat-label">Höhenmeter</span><span class="stat-num" id="live-elev">0<i>hm</i></span></div>
+        <div class="stat"><span class="stat-label">In Fahrt</span><span class="stat-num" id="live-moving">0:00</span></div>
+      </div>
+
+      <div class="lapbox hidden" id="lapbox">
+        <div class="lapbox-head">
+          <span id="lap-state">Warte auf Start …</span>
+          <span class="lap-clock" id="lap-clock">–</span>
+        </div>
+        <div class="lap-list" id="lap-list"></div>
+      </div>
+
+      <div class="minimap-wrap">
+        <div id="minimap" class="minimap"></div>
+        <button class="map-expand" id="btn-map-expand">Karte öffnen</button>
+      </div>
+    </div>
+
+    <div class="ride-controls">
+      <div class="mode-row" id="mode-row">
+        <button class="chip is-on" data-mode="free">Freie Fahrt</button>
+        <button class="chip" data-mode="scan">Trail scannen</button>
+        <button class="chip" data-mode="lap">Trail fahren</button>
+      </div>
+      <div class="mode-extra hidden" id="mode-extra"></div>
+      <div class="btn-row">
+        <button class="btn btn-primary btn-big" id="btn-start">Start</button>
+        <button class="btn btn-ghost hidden" id="btn-pause">Pause</button>
+        <button class="btn btn-danger hidden" id="btn-stop">Stopp</button>
+        <button class="btn btn-ghost" id="btn-spot-now">Spot hier</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ KARTE ============ -->
+  <section class="screen" id="screen-map" data-screen="map">
+    <header class="topbar">
+      <div class="title">Karte</div>
+      <div class="filters">
+        <button class="chip chip-sm is-on" data-layer="trails">Trails</button>
+        <button class="chip chip-sm is-on" data-layer="spots">Spots</button>
+        <button class="chip chip-sm" data-layer="rides">Fahrten</button>
+      </div>
+    </header>
+    <div class="map-full" id="bigmap"></div>
+    <div class="map-fabs">
+      <button class="fab" id="btn-locate" aria-label="Meine Position">◎</button>
+      <button class="fab fab-accent" id="btn-add-spot" aria-label="Spot hinzufügen">＋</button>
+    </div>
+    <div class="map-hint" id="map-hint">Lange auf die Karte drücken = Spot an dieser Stelle</div>
+  </section>
+
+  <!-- ============ TRAILS ============ -->
+  <section class="screen" id="screen-trails" data-screen="trails">
+    <header class="topbar"><div class="title">Trails</div></header>
+    <div class="scroll" id="trail-list"></div>
+  </section>
+
+  <!-- ============ FAHRTEN ============ -->
+  <section class="screen" id="screen-rides" data-screen="rides">
+    <header class="topbar"><div class="title">Fahrten</div></header>
+    <div class="scroll" id="ride-list"></div>
+  </section>
+
+  <!-- ============ STATS ============ -->
+  <section class="screen" id="screen-stats" data-screen="stats">
+    <header class="topbar"><div class="title">Statistik</div></header>
+    <div class="scroll" id="stats-body"></div>
+  </section>
+
+  <nav class="tabbar" id="tabbar">
+    <button class="tab is-on" data-goto="ride"><span class="tab-ico">▲</span>Fahren</button>
+    <button class="tab" data-goto="map"><span class="tab-ico">◈</span>Karte</button>
+    <button class="tab" data-goto="trails"><span class="tab-ico">〜</span>Trails</button>
+    <button class="tab" data-goto="rides"><span class="tab-ico">≡</span>Fahrten</button>
+    <button class="tab" data-goto="stats"><span class="tab-ico">◔</span>Stats</button>
+  </nav>
+</div>
+
+<!-- Detail-Overlay (Fahrt / Trail / Spot) -->
+<div class="sheet" id="detail" hidden>
+  <header class="topbar sheet-top">
+    <button class="icon-btn" id="detail-back" aria-label="Zurück">‹</button>
+    <div class="title" id="detail-title">Detail</div>
+    <button class="icon-btn" id="detail-menu" aria-label="Menü">⋯</button>
+  </header>
+  <div class="scroll" id="detail-body"></div>
+</div>
+
+<!-- Modal -->
+<div class="modal" id="modal" hidden>
+  <div class="modal-card" id="modal-card"></div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="vendor/leaflet.js"></script>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
