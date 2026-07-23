@@ -179,6 +179,7 @@ let selectedTrailId = null;
 $$('#mode-row .chip').forEach((c) => c.addEventListener('click', () => {
   if (tracker.active) return toast('Erst die Fahrt beenden');
   rideMode = c.dataset.mode;
+  settings.lastMode = rideMode; saveSettings();
   $$('#mode-row .chip').forEach((x) => x.classList.toggle('is-on', x === c));
   renderModeExtra();
 }));
@@ -194,7 +195,7 @@ function renderModeExtra() {
     box.className = 'mode-extra';
     box.innerHTML = `<div class="field" style="margin:0"><label>Welcher Trail?</label>
       <select id="sel-trail">${state.trails.map((t) => `<option value="${t.id}" ${t.id === selectedTrailId ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}</select></div>`;
-    $('#sel-trail').onchange = (e) => { selectedTrailId = e.target.value; drawTrailPreview(); };
+    $('#sel-trail').onchange = (e) => { selectedTrailId = e.target.value; settings.lastTrailId = selectedTrailId; saveSettings(); drawTrailPreview(); };
     drawTrailPreview();
   } else {
     box.className = 'mode-extra hidden'; box.innerHTML = '';
@@ -253,6 +254,7 @@ $('#btn-stop').addEventListener('click', async () => {
 
 function saveRideDialog(res) {
   const st = analyze(res.points);
+  st.dur = Math.max(0, st.dur - (res.pausedMs || 0) / 1000);
   const d = fmtDist(st.dist);
   const nameSuggest = res.mode === 'scan'
     ? 'Neuer Trail'
@@ -302,9 +304,9 @@ async function persistRide(res, st, name) {
   }
   const ride = {
     id: uid(), name, trailId: trailId || null, mode: res.mode,
-    startedAt: res.startedAt, endedAt: res.endedAt,
+    startedAt: res.startedAt, endedAt: res.endedAt, pausedMs: res.pausedMs || 0,
     points: res.points, laps: res.laps,
-    stats: { dist: st.dist, dur: st.dur, moving: st.moving, avg: st.avg, avgMoving: st.avgMoving, max: st.max, up: st.up, down: st.down },
+    stats: { dist: st.dist, dur: Math.max(0, st.dur - (res.pausedMs || 0) / 1000), moving: st.moving, avg: st.avg, avgMoving: st.avgMoving, max: st.max, up: st.up, down: st.down },
   };
   await db.put('rides', ride);
   await loadAll();
@@ -353,7 +355,8 @@ function renderLiveLaps() {
 }
 
 function updateLive() {
-  const v = tracker.active && !tracker.paused ? tracker.v : (tracker.active ? 0 : tracker.v);
+  let v = tracker.paused ? 0 : tracker.v;
+  if (!tracker.lastFixT || Date.now() - tracker.lastFixT > 4000) v = 0;   // kein frischer Fix → 0 statt alter Wert
   $('#live-speed').innerHTML = `${nf(kmh(v), v * 3.6 >= 10 ? 0 : 1)}<span class="speed-unit">km/h</span>`;
   const d = fmtDist(tracker.dist);
   $('#live-dist').innerHTML = `${d.v}<i>${d.u}</i>`;
@@ -660,6 +663,7 @@ function openRide(id) {
   const r = state.rides.find((x) => x.id === id); if (!r) return;
   openDetail(r.name, (body) => {
     const st = analyze(r.points);
+    st.dur = Math.max(0, st.dur - (r.pausedMs || 0) / 1000);   // Pausen zählen nicht zur Dauer
     const d = fmtDist(st.dist);
     const trail = r.trailId ? trailById(r.trailId) : null;
     const nearSpots = state.spots.filter((s) => distToTrack(s, r.points, 3) < 40);
@@ -998,14 +1002,22 @@ async function checkCrashed() {
 }
 
 /* ==================== Start ==================== */
-document.addEventListener('visibilitychange', () => { if (!document.hidden) tracker.reacquireWake(); });
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) tracker.reacquireWake();
+  else if (tracker.active) tracker.autosave();      // App in den Hintergrund → sofort sichern
+});
+window.addEventListener('pagehide', () => { if (tracker.active) tracker.autosave(); });
 matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => { if (settings.theme === 'auto') applyTheme(); });
 window.addEventListener('beforeunload', (e) => { if (tracker.active) { e.preventDefault(); e.returnValue = ''; } });
 
 (async function init() {
   applyTheme();
+  navigator.storage?.persist?.().catch(() => {});   // Speicher als dauerhaft markieren (Browser darf ihn sonst irgendwann räumen)
   await loadAll();
   ensureMiniMap();
+  rideMode = ['free', 'scan', 'lap'].includes(settings.lastMode) ? settings.lastMode : 'free';
+  if (settings.lastTrailId && trailById(settings.lastTrailId)) selectedTrailId = settings.lastTrailId;
+  $$('#mode-row .chip').forEach((x) => x.classList.toggle('is-on', x.dataset.mode === rideMode));
   renderModeExtra();
   updateLive();
   tracker.startGPS();

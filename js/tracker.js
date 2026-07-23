@@ -68,7 +68,7 @@ export const tracker = {
     this.lapStartT = 0; this._visit = null;
     await this.startGPS();
     await this.keepAwake(true);
-    this._saveTimer = setInterval(() => this.autosave(), 8000);
+    this._saveTimer = setInterval(() => this.autosave(), 3000);
   },
   pause() {
     if (!this.active || this.paused) return;
@@ -76,10 +76,13 @@ export const tracker = {
   },
   resume() {
     if (!this.active || !this.paused) return;
-    this.pausedMs += Date.now() - this._pauseStart;
+    const span = Date.now() - this._pauseStart;
+    this.pausedMs += span;
+    if (this.lapState === 'running' && this.lapStartT) this.lapStartT += span;  // Runde pausiert mit
     this.paused = false; this._pauseStart = 0;
   },
   async stop() {
+    if (this.paused) { this.pausedMs += Date.now() - this._pauseStart; this._pauseStart = 0; }
     this.active = false; this.paused = false;
     clearInterval(this._saveTimer); this._saveTimer = null;
     await this.keepAwake(false);
@@ -87,6 +90,7 @@ export const tracker = {
     const res = {
       points: this.points, laps: this.laps, startedAt: this.startedAt,
       endedAt: Date.now(), mode: this.mode, trailId: this.trail?.id || null, name: this.name,
+      pausedMs: this.pausedMs,
     };
     this.points = []; this.laps = []; this.v = 0; this.dist = 0;
     this.lapState = 'idle';
@@ -113,6 +117,7 @@ export const tracker = {
     }
     this.quality = c.accuracy > limit ? 'weak' : 'ok';
     this.emit('quality', `±${Math.round(c.accuracy)} m`);
+    this.lastFixT = t;
 
     const cur = {
       t, lat: c.latitude, lon: c.longitude,
@@ -137,8 +142,11 @@ export const tracker = {
       if (gpsV === null && d >= noise) this.dist += d;
       else if (gpsV !== null && (d > noise * 0.6 || gpsV > 0.9)) this.dist += d;
 
-      this.v = this.v * 0.55 + raw * 0.45;          // EMA-Glättung
-      if (this.v < 0.35) this.v = 0;
+      // Doppler-Speed vom GPS ist präzise → kaum glätten, damit die Anzeige sofort reagiert
+      const w = gpsV !== null ? 0.8 : 0.6;
+      this.v = this.v * (1 - w) + raw * w;
+      if (raw < 0.4) this.v = raw;                  // Anhalten sofort anzeigen
+      if (this.v < 0.3) this.v = 0;
       if (raw > 0.8) this.movingMs += dt * 1000;
       if (this.v > this.maxV) this.maxV = this.v;
       cur.v = this.v;
@@ -196,7 +204,9 @@ export const tracker = {
   },
 
   get lapClock() {
-    return this.lapState === 'running' && this.lapStartT ? Math.max(0, (Date.now() - this.lapStartT) / 1000) : null;
+    if (this.lapState !== 'running' || !this.lapStartT) return null;
+    const end = this.paused ? this._pauseStart : Date.now();   // steht bei Pause still
+    return Math.max(0, (end - this.lapStartT) / 1000);
   },
 
   // ---------- Display an ----------

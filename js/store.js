@@ -64,6 +64,8 @@ const defaults = {
   minAccuracy: 35,
   lapRadius: 25,
   autoLap: true,
+  lastMode: 'free',
+  lastTrailId: null,
 };
 export const settings = { ...defaults, ...JSON.parse(localStorage.getItem(SET_KEY) || '{}') };
 export function saveSettings() {
