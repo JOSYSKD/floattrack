@@ -1,5 +1,7 @@
 # floatTRACK
 
+**▶ App öffnen: https://josyskd.github.io/floattrack/**
+
 GPS-Tracker für eigene Singletrails: Trail abfahren = Trail gespeichert, Spots mit Fotos
 auf der Karte, Rundenzeiten gegen die eigene Bestzeit und ein Speed-Diagramm über die
 ganze Fahrt mit markiertem Höchst- und Tiefpunkt.
